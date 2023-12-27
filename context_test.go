@@ -3,7 +3,9 @@ package belajargolangcontext
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"testing"
+	"time"
 )
 
 // Membuat Context
@@ -45,4 +47,87 @@ func TestContextWithValue(t *testing.T) {
 	fmt.Println(contextF.Value("b")) // tidak dapat, beda parent
 
 	fmt.Println(contextA.Value("b")) // tidak bisa menngambil data child
+}
+
+// Context With Cencel
+
+// Goroutine Leak
+
+func CreateCounterLeak() chan int {
+	destination := make(chan int)
+
+	go func() {
+		defer close(destination)
+		counter := 1
+
+		for {
+
+			destination <- counter
+			counter++
+
+		}
+	}()
+
+	return destination
+}
+
+func TestGoroutineLeak(t *testing.T) {
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
+
+	destination := CreateCounterLeak()
+
+	for n := range destination {
+		fmt.Println("Counter", n)
+		if n == 10 {
+			break
+		}
+	}
+
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
+}
+
+// Contex With Cencel, signal cencel
+
+func CreateCounter(ctx context.Context) chan int {
+	destination := make(chan int)
+
+	go func() {
+		defer close(destination)
+		counter := 1
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				destination <- counter
+				counter++
+			}
+		}
+	}()
+
+	return destination
+}
+
+func TestContextWithCencel(t *testing.T) {
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
+
+	parent := context.Background()
+	ctx, cencel := context.WithCancel(parent)
+
+	destination := CreateCounter(ctx)
+
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
+
+	for n := range destination {
+		fmt.Println("Counter", n)
+		if n == 10 {
+			break
+		}
+	}
+	cencel() // menigirim signal cencel ke context
+
+	time.Sleep(2 * time.Second)
+
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
 }
