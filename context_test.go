@@ -88,7 +88,7 @@ func TestGoroutineLeak(t *testing.T) {
 
 // Contex With Cencel, signal cencel
 
-func CreateCounter(ctx context.Context) chan int {
+func CreateCounterWithCencel(ctx context.Context) chan int {
 	destination := make(chan int)
 
 	go func() {
@@ -115,7 +115,7 @@ func TestContextWithCencel(t *testing.T) {
 	parent := context.Background()
 	ctx, cencel := context.WithCancel(parent)
 
-	destination := CreateCounter(ctx)
+	destination := CreateCounterWithCencel(ctx)
 
 	fmt.Println("Total Goroutine", runtime.NumGoroutine())
 
@@ -126,6 +126,50 @@ func TestContextWithCencel(t *testing.T) {
 		}
 	}
 	cencel() // menigirim signal cencel ke context
+
+	time.Sleep(2 * time.Second)
+
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
+}
+
+// Context With Timeout
+
+func CreateCounterWithTimeout(ctx context.Context) chan int {
+	destination := make(chan int)
+
+	go func() {
+		defer close(destination)
+		counter := 1
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				destination <- counter
+				counter++
+				time.Sleep(1 * time.Second) // Simulai Slow
+			}
+		}
+	}()
+
+	return destination
+}
+
+func TestContextWithTimeout(t *testing.T) {
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
+
+	parent := context.Background()
+	ctx, cencel := context.WithTimeout(parent, 5*time.Second)
+	defer cencel()
+
+	destination := CreateCounterWithTimeout(ctx)
+
+	fmt.Println("Total Goroutine", runtime.NumGoroutine())
+
+	for n := range destination {
+		fmt.Println("Counter", n)
+	}
 
 	time.Sleep(2 * time.Second)
 
